@@ -216,7 +216,8 @@ def ask():
         return jsonify({"reply": "সার্ভারে সমস্যা হয়েছে, আবার চেষ্টা করুন।"}), 200
 
 if __name__ == '__main__':
-    print("Open in browser: http://127.0.0.1:5000  (press Ctrl+C to stop)")
-    app.run(host='127.0.0.1', port=5000, debug=True, use_reloader=False)
+    port = int(os.environ.get('PORT', 5000))
+    print(f"Open in browser: http://127.0.0.1:{port}  (press Ctrl+C to stop)")
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 
