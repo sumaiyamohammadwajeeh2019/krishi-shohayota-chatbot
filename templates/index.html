@@ -20,6 +20,10 @@ button{margin-left:6px;padding:12px;border:none;border-radius:50%;background:#2e
 </head>
 <body>
 <div class="header">🌾 কৃষি পরামর্শ - ৮ বিভাগ</div>
+<div style="display:flex;gap:6px;padding:8px;background:#fff">
+<button id="tabChat" class="div-btn active" onclick="showTab('chat')">💬 চ্যাট</button>
+<button id="tabFert" class="div-btn" onclick="showTab('fert')">🧪 সার ক্যালকুলেটর</button>
+</div>
 <div class="division-bar">
 <button class="div-btn active" onclick="setDiv('sylhet',this)">সিলেট</button>
 <button class="div-btn" onclick="setDiv('dhaka',this)">ঢাকা</button>
@@ -32,6 +36,30 @@ button{margin-left:6px;padding:12px;border:none;border-radius:50%;background:#2e
 </div>
 
 <div id="chat"><div class="msg bot">আপনার বিভাগ সিলেক্ট করুন। তারপর প্রশ্ন করুন বা মাইকে চাপ দিয়ে বলুন।</div></div>
+
+<div id="fert" style="display:none;padding:12px;padding-bottom:90px;max-width:640px;margin:auto">
+<div style="background:#fff;border-radius:12px;padding:14px">
+<h3 style="margin:4px 0">🧪 সার ক্যালকুলেটর (ম্যাক্রো+মাইক্রো)</h3>
+<label>ফসল</label><br><select id="fCrop" style="width:100%;padding:10px;border-radius:8px"></select>
+<div id="fTip" style="font-size:13px;color:#2e7d32;margin:6px 0"></div>
+<div style="display:flex;gap:6px">
+<div style="flex:1"><label>জমি</label><br><input id="fQty" type="number" value="1" min="0.1" step="0.1" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ccc"></div>
+<div style="flex:1"><label>একক</label><br><select id="fUnit" style="width:100%;padding:10px;border-radius:8px"></select></div>
+</div>
+<div id="fCustom" style="display:none;background:#f6faf1;padding:8px;border-radius:8px;margin-top:8px">
+<b>কাস্টম N-P-K... (kg/ha)</b><div id="fCustGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"></div>
+</div>
+<details style="margin-top:8px"><summary>উৎস বদলান (TSP/DAP, MOP/SOP...)</summary>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+<label><input type="checkbox" id="fDap"> DAP (TSP-এর বদলে)</label>
+<label>পটাশ: <select id="fK"><option value="mop">MOP</option><option value="sop">SOP</option></select></label>
+<label>জিংক: <select id="fZn"><option value="znmono">মনো ৩৬%</option><option value="znhepta">হেপ্টা ২১%</option></select></label>
+<label>বোরন: <select id="fB"><option value="boric">বোরিক এসিড</option><option value="borax">বোরাক্স</option></select></label>
+</div></details>
+<button onclick="calcFert()" style="width:100%;border-radius:10px;margin:10px 0;padding:12px">হিসাব করুন</button>
+<div id="fOut"></div>
+<div id="fMicro" style="margin-top:10px"></div>
+</div></div>
 
 <div class="input-area">
 <input id="inp" placeholder="লিখুন...">
@@ -85,6 +113,47 @@ function startVoice(){
  }
 }
 document.getElementById('inp').addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+function showTab(t){
+ document.getElementById('chat').style.display=t==='chat'?'block':'none';
+ document.getElementById('fert').style.display=t==='fert'?'block':'none';
+ document.querySelector('.input-area').style.display=t==='chat'?'flex':'none';
+ document.getElementById('tabChat').classList.toggle('active',t==='chat');
+ document.getElementById('tabFert').classList.toggle('active',t==='fert');
+ if(t==='fert') loadFert();
+}
+let FDATA=null;
+async function loadFert(){
+ if(FDATA) return renderFertOpts();
+ let r=await fetch('/fert-data'); FDATA=await r.json(); renderFertOpts();
+}
+function renderFertOpts(){
+ let c=document.getElementById('fCrop'); c.innerHTML='';
+ for(let k in FDATA.crops){ let o=document.createElement('option'); o.value=k; o.textContent=FDATA.crops[k].bn; c.appendChild(o); }
+ let co=document.createElement('option'); co.value='custom'; co.textContent='কাস্টম (নিজে লিখুন)'; c.appendChild(co);
+ let u=document.getElementById('fUnit'); u.innerHTML='';
+ for(let k in FDATA.lands){ let o=document.createElement('option'); o.value=k; o.textContent=FDATA.lands[k]; if(k==='bigha')o.selected=true; u.appendChild(o); }
+ let g=document.getElementById('fCustGrid'); g.innerHTML='';
+ ['N','P','K','S','Zn','B','Mg','Ca'].forEach(n=>{ g.innerHTML+=n+': <input id="c_'+n+'" type="number" step="0.1" value="0" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc">'; });
+ c.onchange=()=>{ let k=c.value; document.getElementById('fCustom').style.display=k==='custom'?'block':'none'; document.getElementById('fTip').textContent=k==='custom'?'':(FDATA.crops[k]?FDATA.crops[k].tip:''); };
+ c.onchange();
+ let m='<b>অন্যান্য মাইক্রো (Fe/Mn/Cu/Mo/Ca/Mg) স্প্রে ডোজ:</b><table border="1" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px;background:#fff">';
+ FDATA.micro.forEach(x=>{ m+='<tr><td><b>'+x.n+'</b><br>লক্ষণ: '+x.s+'</td><td>'+x.f+'<br>'+x.d+'</td></tr>'; });
+ document.getElementById('fMicro').innerHTML=m+'</table>';
+}
+function fmtKg(kg){ return kg>=1?kg.toFixed(2)+' কেজি':Math.round(kg*1000)+' গ্রাম'; }
+async function calcFert(){
+ let body={crop:document.getElementById('fCrop').value,qty:document.getElementById('fQty').value,unit:document.getElementById('fUnit').value,use_dap:document.getElementById('fDap').checked,k_src:document.getElementById('fK').value,zn_src:document.getElementById('fZn').value,b_src:document.getElementById('fB').value};
+ if(body.crop==='custom') ['N','P','K','S','Zn','B','Mg','Ca'].forEach(n=>{ body[n]=document.getElementById('c_'+n).value; });
+ document.getElementById('fOut').innerHTML='হিসাব হচ্ছে...';
+ let r=await fetch('/fert-calc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ let d=await r.json();
+ if(d.error){ document.getElementById('fOut').innerHTML=d.error; return; }
+ let h='<div style="background:#e8f5e9;padding:10px;border-radius:8px"><b>'+d.crop+'</b> — '+d.land+'<br><span style="font-size:13px">💡 '+d.tip+'</span></div>';
+ h+='<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%;margin-top:8px;background:#fff"><tr><th>সার</th><th>পরিমাণ</th><th>দাম≈</th></tr>';
+ d.items.forEach(it=>{ h+='<tr><td>'+it.name+'</td><td><b>'+fmtKg(it.kg)+'</b></td><td>৳'+it.cost+'</td></tr>'; });
+ h+='</table><div style="margin-top:6px"><b>মোট: '+d.total_kg+' কেজি | খরচ ≈ ৳'+d.cost+'</b></div>';
+ document.getElementById('fOut').innerHTML=h;
+}
 </script>
 </body>
 </html>
